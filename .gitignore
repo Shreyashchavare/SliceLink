@@ -1,0 +1,29 @@
+# Environment and local tooling
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+*.iml
+.classpath
+.project
+.settings/
+
+# Java and Maven
+target/
+backend/.m2/
+*.class
+
+# Node.js and Vite
+node_modules/
+dist/
+frontend/*.tsbuildinfo
+
+# Logs and OS files
+*.log
+*.tmp
+*.temp
+*.swp
+*~
+Thumbs.db
+.DS_Store
