@@ -1,11 +1,13 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:slicelink;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    url: jdbc:h2:mem:slicelink-${random.uuid};MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     username: sa
     password:
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: validate
+  flyway:
+    enabled: true
   data:
     redis:
       repositories:
@@ -20,3 +22,12 @@ management:
       enabled: false
     kafka:
       enabled: false
+
+slicelink:
+  security:
+    jwt:
+      secret: test-secret-that-is-at-least-thirty-two-characters-long
+      access-token-ttl: PT15M
+      refresh-token-ttl: P7D
+    cors:
+      allowed-origin: http://localhost:5173
