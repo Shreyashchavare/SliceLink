@@ -72,4 +72,37 @@ public class UrlService {
                 "SHORT_CODE_GENERATION_FAILED",
                 "Failed to generate a unique short code. Please retry.");
     }
+
+    /**
+     * Resolves a short code to its original URL for redirection.
+     *
+     * @param shortCode the Base62 short code to resolve
+     * @return the original URL destination
+     * @throws ApiException 404 NOT_FOUND if the short code does not exist
+     * @throws ApiException 410 GONE if the URL is disabled
+     */
+    @Transactional(readOnly = true)
+    public String getRedirectUrl(String shortCode) {
+        if (shortCode == null || shortCode.isBlank()) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "URL_NOT_FOUND",
+                    "Short URL not found.");
+        }
+
+        Url url = urlRepository.findByShortCode(shortCode)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "URL_NOT_FOUND",
+                        "Short URL not found."));
+
+        if (url.getStatus() != UrlStatus.ACTIVE) {
+            throw new ApiException(
+                    HttpStatus.GONE,
+                    "URL_DISABLED",
+                    "Short URL is disabled.");
+        }
+
+        return url.getOriginalUrl();
+    }
 }
