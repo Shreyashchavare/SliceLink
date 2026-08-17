@@ -11,6 +11,18 @@ spring:
       port: ${SPRING_DATA_REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+slicelink:
+  security:
+    jwt:
+      secret: ${SLICELINK_JWT_SECRET}
+      access-token-ttl: ${SLICELINK_JWT_ACCESS_TOKEN_TTL:PT15M}
+      refresh-token-ttl: ${SLICELINK_JWT_REFRESH_TOKEN_TTL:P7D}
+    cors:
+      allowed-origin: ${SLICELINK_CORS_ALLOWED_ORIGIN:http://localhost:5173}
 
 server:
   port: ${SERVER_PORT:8080}
