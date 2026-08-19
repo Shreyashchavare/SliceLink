@@ -8,10 +8,14 @@ import { ErrorMessage } from '../components/common/ErrorMessage';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { NormalizedApiError } from '../api/types';
+import { validateEmail, validatePassword } from '../utils/validationUtils';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<NormalizedApiError | null>(null);
 
@@ -22,38 +26,50 @@ export const LoginPage: React.FC = () => {
 
   const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/dashboard';
 
+  const handleEmailBlur = () => {
+    if (email) {
+      setEmailError(validateEmail(email));
+    }
+  };
+
+  const handlePasswordBlur = () => {
+    if (password) {
+      setPasswordError(validatePassword(password));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+
     setError(null);
 
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) {
-      setError({
-        code: 'VALIDATION_ERROR',
-        message: 'Email address is required.',
-      });
-      return;
-    }
+    const emailValidation = validateEmail(email);
+    const passwordValidation = validatePassword(password);
 
-    if (!password) {
-      setError({
-        code: 'VALIDATION_ERROR',
-        message: 'Password is required.',
-      });
+    setEmailError(emailValidation);
+    setPasswordError(passwordValidation);
+
+    if (emailValidation || passwordValidation) {
       return;
     }
 
     setLoading(true);
     try {
-      await login({ email: trimmedEmail, password });
+      await login({ email: email.trim(), password });
       showSuccess('Welcome back to SliceLink!');
       navigate(from, { replace: true });
     } catch (err) {
       const apiError = err as NormalizedApiError;
-      if (apiError.status === 429) {
+      if (apiError.status === 401) {
         setError({
           ...apiError,
-          message: 'Too many login attempts. Please try again later.',
+          message: 'Invalid email or password. Please verify your credentials and try again.',
+        });
+      } else if (apiError.status === 429) {
+        setError({
+          ...apiError,
+          message: 'Too many login attempts. Please wait a moment before trying again.',
         });
       } else {
         setError(apiError);
@@ -69,13 +85,19 @@ export const LoginPage: React.FC = () => {
         <Card title="Sign in to SliceLink" subtitle="Enter your credentials to manage your shortened links">
           <ErrorMessage error={error} title="Sign In Failed" />
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <Input
               label="Email Address"
               type="email"
               placeholder="user@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (emailError) setEmailError(null);
+              }}
+              onBlur={handleEmailBlur}
+              error={emailError}
+              disabled={loading}
               required
               autoComplete="email"
               autoFocus
@@ -86,7 +108,13 @@ export const LoginPage: React.FC = () => {
               type="password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (passwordError) setPasswordError(null);
+              }}
+              onBlur={handlePasswordBlur}
+              error={passwordError}
+              disabled={loading}
               required
               autoComplete="current-password"
             />
@@ -95,6 +123,7 @@ export const LoginPage: React.FC = () => {
               type="submit"
               variant="primary"
               isLoading={loading}
+              disabled={loading}
               style={{ width: '100%', marginTop: '0.75rem' }}
             >
               Sign In

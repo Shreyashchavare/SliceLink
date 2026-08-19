@@ -57,6 +57,7 @@ export const UrlsPage: React.FC = () => {
   }, [urls, searchQuery, statusFilter]);
 
   const handleToggleStatus = async (url: UrlResponse) => {
+    if (actionLoadingId) return;
     setActionLoadingId(url.id);
     const newStatus = url.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
     try {
@@ -71,14 +72,15 @@ export const UrlsPage: React.FC = () => {
   };
 
   const handleDelete = async (url: UrlResponse) => {
-    if (!window.confirm(`Are you sure you want to delete /${url.shortCode}? This action cannot be undone.`)) {
+    if (actionLoadingId) return;
+    if (!window.confirm(`Are you sure you want to delete /${url.shortCode}?\n\nDestination: ${url.originalUrl}\n\nThis will permanently remove the short link and clear its cache entry.`)) {
       return;
     }
     setActionLoadingId(url.id);
     try {
       await urlApi.deleteUrl(url.id);
       setUrls((prev) => prev.filter((u) => u.id !== url.id));
-      showSuccess(`Shortened link /${url.shortCode} was deleted.`);
+      showSuccess(`Shortened link /${url.shortCode} was permanently deleted.`);
     } catch (err) {
       showError((err as NormalizedApiError).message || 'Failed to delete URL.');
     } finally {
@@ -101,7 +103,7 @@ export const UrlsPage: React.FC = () => {
       <Card>
         {/* Search & Filter Bar */}
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.25rem', alignItems: 'center' }}>
-          <div style={{ flex: '1', minWidth: '220px' }}>
+          <div style={{ flex: '1', minWidth: '220px', position: 'relative' }}>
             <Input
               type="search"
               placeholder="Search by short code or destination..."
@@ -109,10 +111,11 @@ export const UrlsPage: React.FC = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
               containerClassName=""
               style={{ marginBottom: 0 }}
+              aria-label="Filter shortened URLs"
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }} role="group" aria-label="Status filters">
             <Button
               variant={statusFilter === 'ALL' ? 'primary' : 'secondary'}
               size="sm"

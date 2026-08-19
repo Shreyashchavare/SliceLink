@@ -6,6 +6,7 @@ import { ErrorMessage } from '../common/ErrorMessage';
 import { urlApi } from '../../api/urlApi';
 import { NormalizedApiError, UrlResponse } from '../../api/types';
 import { useToast } from '../../context/ToastContext';
+import { validateUrl } from '../../utils/validationUtils';
 
 interface CreateUrlModalProps {
   isOpen: boolean;
@@ -19,35 +20,43 @@ export const CreateUrlModal: React.FC<CreateUrlModalProps> = ({
   onSuccess,
 }) => {
   const [originalUrl, setOriginalUrl] = useState<string>('');
+  const [fieldError, setFieldError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<NormalizedApiError | null>(null);
+  const [apiError, setApiError] = useState<NormalizedApiError | null>(null);
   const { showSuccess } = useToast();
 
   const handleClose = () => {
+    if (loading) return;
     setOriginalUrl('');
-    setError(null);
+    setFieldError(null);
+    setApiError(null);
     onClose();
+  };
+
+  const handleUrlChange = (value: string) => {
+    setOriginalUrl(value);
+    if (fieldError) {
+      setFieldError(null);
+    }
+  };
+
+  const handleBlur = () => {
+    if (originalUrl.trim()) {
+      const err = validateUrl(originalUrl);
+      setFieldError(err);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    if (loading) return;
 
+    setApiError(null);
     const trimmed = originalUrl.trim();
-    if (!trimmed) {
-      setError({
-        code: 'VALIDATION_ERROR',
-        message: 'Destination URL is required.',
-      });
-      return;
-    }
+    const validationMessage = validateUrl(trimmed);
 
-    // Basic URL protocol validation
-    if (!/^https?:\/\//i.test(trimmed)) {
-      setError({
-        code: 'INVALID_URL',
-        message: 'Destination URL must start with http:// or https://',
-      });
+    if (validationMessage) {
+      setFieldError(validationMessage);
       return;
     }
 
@@ -58,7 +67,15 @@ export const CreateUrlModal: React.FC<CreateUrlModalProps> = ({
       onSuccess(created);
       handleClose();
     } catch (err) {
-      setError(err as NormalizedApiError);
+      const normErr = err as NormalizedApiError;
+      if (normErr.status === 429) {
+        setApiError({
+          ...normErr,
+          message: 'Rate limit exceeded. You are creating links too quickly. Please wait a moment.',
+        });
+      } else {
+        setApiError(normErr);
+      }
     } finally {
       setLoading(false);
     }
@@ -86,13 +103,16 @@ export const CreateUrlModal: React.FC<CreateUrlModalProps> = ({
       }
     >
       <form id="create-url-form" onSubmit={handleSubmit}>
-        <ErrorMessage error={error} />
+        <ErrorMessage error={apiError} />
         <Input
           label="Destination URL"
           type="url"
           placeholder="https://example.com/very/long/destination/url"
           value={originalUrl}
-          onChange={(e) => setOriginalUrl(e.target.value)}
+          onChange={(e) => handleUrlChange(e.target.value)}
+          onBlur={handleBlur}
+          error={fieldError}
+          disabled={loading}
           required
           autoFocus
           helperText="Enter the full target URL including http:// or https://"
