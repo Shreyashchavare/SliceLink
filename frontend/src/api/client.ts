@@ -1,6 +1,8 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { BackendHealthResponse } from './types';
 import { normalizeError } from '../utils/errorUtils';
+import { getAccessToken, clearTokens } from '../auth/authStorage';
+import { authEvents } from '../auth/authEvents';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
@@ -16,12 +18,11 @@ export const apiClient: AxiosInstance = axios.create({
   },
 });
 
-// Request Interceptor: Attach Authorization Bearer token if stored in memory / storage
+// Request Interceptor: Attach Authorization Bearer token from authStorage if available
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Placeholder hook for token attachment in future auth phases
-    const token = getStoredToken();
-    if (token && config.headers) {
+    const token = getAccessToken();
+    if (token && config.headers && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -29,25 +30,23 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Format errors cleanly
+// Response Interceptor: Normalize errors and emit 401 session expiration event
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error) => {
+    const status = error.response?.status;
+    const requestUrl = error.config?.url || '';
+
+    // Handle 401 Unauthorized for authenticated endpoints (excluding login itself)
+    if (status === 401 && !requestUrl.includes('/api/v1/auth/login')) {
+      clearTokens();
+      authEvents.emitUnauthorized();
+    }
+
     const normalized = normalizeError(error);
     return Promise.reject(normalized);
   }
 );
-
-// Lightweight token storage helper (future auth phases will wire full session management)
-let inMemoryToken: string | null = null;
-
-export function setApiAuthToken(token: string | null): void {
-  inMemoryToken = token;
-}
-
-function getStoredToken(): string | null {
-  return inMemoryToken;
-}
 
 /**
  * Health check helper querying the backend Actuator /actuator/health endpoint.

@@ -27,6 +27,21 @@ export interface UserResponse {
   createdAt: string;
 }
 
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  name: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RefreshTokenRequest {
+  refreshToken: string;
+}
+
 export interface AuthenticationResponse {
   accessToken: string;
   refreshToken: string;
@@ -34,15 +49,28 @@ export interface AuthenticationResponse {
   user: UserResponse;
 }
 
+export type UrlStatus = 'ACTIVE' | 'DISABLED';
+
+export interface CreateUrlRequest {
+  originalUrl: string;
+}
+
+export interface UpdateUrlRequest {
+  originalUrl: string;
+}
+
+export interface UpdateUrlStatusRequest {
+  status: UrlStatus;
+}
+
 export interface UrlResponse {
-  id: string;
-  userId: string;
+  id: number | string;
+  userId: number | string;
   originalUrl: string;
   shortCode: string;
-  shortUrl: string;
-  status: 'ACTIVE' | 'DISABLED';
+  status: UrlStatus;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string | null;
 }
 
 export interface RecentClickItem {
