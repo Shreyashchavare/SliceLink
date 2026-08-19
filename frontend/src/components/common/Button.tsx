@@ -25,15 +25,17 @@ export const Button: React.FC<ButtonProps> = ({
     <button
       className={`btn btn-${variant} btn-${size} ${isLoading ? 'btn-loading' : ''} ${className}`}
       disabled={disabled || isLoading}
+      aria-busy={isLoading ? 'true' : undefined}
+      aria-disabled={disabled || isLoading ? 'true' : undefined}
       {...props}
     >
       {isLoading ? (
         <LoadingSpinner size="sm" label="" />
       ) : (
         <>
-          {leftIcon && <span className="btn-icon-left">{leftIcon}</span>}
+          {leftIcon && <span className="btn-icon-left" aria-hidden="true">{leftIcon}</span>}
           <span>{children}</span>
-          {rightIcon && <span className="btn-icon-right">{rightIcon}</span>}
+          {rightIcon && <span className="btn-icon-right" aria-hidden="true">{rightIcon}</span>}
         </>
       )}
     </button>

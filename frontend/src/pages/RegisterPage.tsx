@@ -8,12 +8,24 @@ import { ErrorMessage } from '../components/common/ErrorMessage';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { NormalizedApiError } from '../api/types';
+import {
+  validateName,
+  validateEmail,
+  validatePassword,
+  validateConfirmPassword,
+} from '../utils/validationUtils';
 
 export const RegisterPage: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<NormalizedApiError | null>(null);
 
@@ -21,52 +33,57 @@ export const RegisterPage: React.FC = () => {
   const { showSuccess } = useToast();
   const navigate = useNavigate();
 
+  const handleNameBlur = () => {
+    if (name) setNameError(validateName(name));
+  };
+
+  const handleEmailBlur = () => {
+    if (email) setEmailError(validateEmail(email));
+  };
+
+  const handlePasswordBlur = () => {
+    if (password) setPasswordError(validatePassword(password));
+  };
+
+  const handleConfirmBlur = () => {
+    if (confirmPassword) setConfirmError(validateConfirmPassword(password, confirmPassword));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+
     setError(null);
 
-    const trimmedName = name.trim();
-    const trimmedEmail = email.trim();
+    const nErr = validateName(name);
+    const eErr = validateEmail(email);
+    const pErr = validatePassword(password);
+    const cErr = validateConfirmPassword(password, confirmPassword);
 
-    if (!trimmedName || trimmedName.length < 2) {
-      setError({
-        code: 'VALIDATION_ERROR',
-        message: 'Name must be at least 2 characters.',
-      });
-      return;
-    }
+    setNameError(nErr);
+    setEmailError(eErr);
+    setPasswordError(pErr);
+    setConfirmError(cErr);
 
-    if (!trimmedEmail) {
-      setError({
-        code: 'VALIDATION_ERROR',
-        message: 'Email address is required.',
-      });
-      return;
-    }
-
-    if (password.length < 8) {
-      setError({
-        code: 'VALIDATION_ERROR',
-        message: 'Password must be at least 8 characters long.',
-      });
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError({
-        code: 'VALIDATION_ERROR',
-        message: 'Passwords do not match.',
-      });
+    if (nErr || eErr || pErr || cErr) {
       return;
     }
 
     setLoading(true);
     try {
-      await register({ name: trimmedName, email: trimmedEmail, password });
+      await register({ name: name.trim(), email: email.trim(), password });
       showSuccess('Account created successfully! Welcome to SliceLink.');
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      setError(err as NormalizedApiError);
+      const apiError = err as NormalizedApiError;
+      if (apiError.status === 409) {
+        setError({
+          ...apiError,
+          message: 'An account with this email address already exists. Please sign in instead.',
+        });
+      } else {
+        setError(apiError);
+      }
     } finally {
       setLoading(false);
     }
@@ -78,13 +95,19 @@ export const RegisterPage: React.FC = () => {
         <Card title="Create your SliceLink account" subtitle="Join thousands of developers shortening URLs at scale">
           <ErrorMessage error={error} title="Registration Failed" />
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <Input
               label="Full Name"
               type="text"
               placeholder="Jane Doe"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (nameError) setNameError(null);
+              }}
+              onBlur={handleNameBlur}
+              error={nameError}
+              disabled={loading}
               required
               autoFocus
             />
@@ -94,7 +117,13 @@ export const RegisterPage: React.FC = () => {
               type="email"
               placeholder="user@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (emailError) setEmailError(null);
+              }}
+              onBlur={handleEmailBlur}
+              error={emailError}
+              disabled={loading}
               required
               autoComplete="email"
             />
@@ -104,7 +133,13 @@ export const RegisterPage: React.FC = () => {
               type="password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (passwordError) setPasswordError(null);
+              }}
+              onBlur={handlePasswordBlur}
+              error={passwordError}
+              disabled={loading}
               required
               autoComplete="new-password"
               helperText="Minimum 8 characters"
@@ -115,7 +150,13 @@ export const RegisterPage: React.FC = () => {
               type="password"
               placeholder="••••••••"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                if (confirmError) setConfirmError(null);
+              }}
+              onBlur={handleConfirmBlur}
+              error={confirmError}
+              disabled={loading}
               required
               autoComplete="new-password"
             />
@@ -124,6 +165,7 @@ export const RegisterPage: React.FC = () => {
               type="submit"
               variant="primary"
               isLoading={loading}
+              disabled={loading}
               style={{ width: '100%', marginTop: '0.75rem' }}
             >
               Create Account

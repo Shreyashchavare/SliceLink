@@ -16,10 +16,15 @@ export function normalizeError(error: unknown): NormalizedApiError {
   // Axios Error with backend ApiErrorResponse payload
   if (isAxiosError(error) && error.response?.data) {
     const data = error.response.data as Partial<ApiErrorResponse>;
+    const status = error.response.status;
+
+    // Use backend-provided message if clean, otherwise use tailored status message
+    const message = data.message || getDefaultMessageForStatus(status);
+
     return {
-      message: data.message || getDefaultMessageForStatus(error.response.status),
-      code: data.code || `HTTP_${error.response.status}`,
-      status: error.response.status,
+      message,
+      code: data.code || `HTTP_${status}`,
+      status,
       requestId: data.requestId,
       path: data.path,
     };
@@ -30,18 +35,18 @@ export function normalizeError(error: unknown): NormalizedApiError {
     if (error.code === 'ERR_NETWORK') {
       return {
         code: 'NETWORK_ERROR',
-        message: 'Unable to connect to the backend server. Please verify the API is running.',
+        message: 'Unable to connect to the SliceLink server. Please check your network connection or try again later.',
       };
     }
-    if (error.code === 'ECONNABORTED') {
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
       return {
         code: 'TIMEOUT_ERROR',
-        message: 'The request timed out. Please try again.',
+        message: 'The request took too long to complete. Please try again.',
       };
     }
     return {
       code: error.code || 'HTTP_ERROR',
-      message: error.message || 'Network request failed.',
+      message: error.message || 'Network request failed. Please check your connection.',
       status: error.response?.status,
     };
   }
@@ -50,14 +55,14 @@ export function normalizeError(error: unknown): NormalizedApiError {
   if (error instanceof Error) {
     return {
       code: 'CLIENT_ERROR',
-      message: error.message,
+      message: error.message || 'An unexpected client error occurred.',
     };
   }
 
   // Fallback
   return {
     code: 'UNKNOWN_ERROR',
-    message: String(error),
+    message: typeof error === 'string' ? error : 'An unexpected error occurred.',
   };
 }
 
@@ -68,24 +73,27 @@ function isAxiosError(error: unknown): error is AxiosError {
 function getDefaultMessageForStatus(status: number): string {
   switch (status) {
     case 400:
-      return 'Invalid request parameters.';
+      return 'The request could not be processed due to invalid parameters.';
     case 401:
-      return 'Authentication required. Please sign in.';
+      return 'Authentication required or invalid credentials.';
     case 403:
-      return 'You do not have permission to perform this action.';
+      return 'You do not have permission to access this resource.';
     case 404:
-      return 'The requested resource was not found.';
+      return 'The requested resource could not be found.';
     case 409:
-      return 'A conflict occurred with an existing resource.';
+      return 'A conflict occurred. A record with this value may already exist.';
     case 410:
-      return 'This resource is disabled or no longer available.';
+      return 'This short link is disabled and no longer redirects traffic.';
+    case 422:
+      return 'Validation failed on the submitted data.';
     case 429:
-      return 'Too many requests. Please try again later.';
+      return 'Too many requests. Please slow down and try again later.';
     case 500:
     case 502:
     case 503:
-      return 'A server error occurred. Please try again later.';
+    case 504:
+      return 'The server encountered an error while processing your request. Please try again later.';
     default:
-      return 'An error occurred processing your request.';
+      return 'An error occurred while processing your request.';
   }
 }
