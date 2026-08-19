@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: slicelink
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.slicelink.*"
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+slicelink:
+  security:
+    jwt:
+      secret: ${SLICELINK_JWT_SECRET}
+      access-token-ttl: ${SLICELINK_JWT_ACCESS_TOKEN_TTL:PT15M}
+      refresh-token-ttl: ${SLICELINK_JWT_REFRESH_TOKEN_TTL:P7D}
+    cors:
+      allowed-origin: ${SLICELINK_CORS_ALLOWED_ORIGIN:http://localhost:5173}
+  cache:
+    url-ttl: ${SLICELINK_CACHE_URL_TTL:PT24H}
+    key-prefix: ${SLICELINK_CACHE_KEY_PREFIX:url:redirect:}
+  kafka:
+    click-topic: ${SLICELINK_KAFKA_CLICK_TOPIC:slicelink.url.clicks}
+    consumer-group: ${SLICELINK_KAFKA_CONSUMER_GROUP:slicelink-analytics}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
