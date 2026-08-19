@@ -31,19 +31,22 @@ public class UrlService {
     /** Maximum collision-retry attempts before raising an internal error. */
     private static final int MAX_RETRIES = 5;
 
-    private final UrlRepository     urlRepository;
-    private final UserRepository    userRepository;
-    private final UrlIdGenerator    idGenerator;
-    private final UrlCacheService   urlCacheService;
+    private final UrlRepository                  urlRepository;
+    private final UserRepository                 userRepository;
+    private final UrlIdGenerator                 idGenerator;
+    private final UrlCacheService                urlCacheService;
+    private final com.slicelink.ratelimit.RateLimitService rateLimitService;
 
     public UrlService(UrlRepository urlRepository,
                       UserRepository userRepository,
                       UrlIdGenerator idGenerator,
-                      UrlCacheService urlCacheService) {
-        this.urlRepository  = urlRepository;
-        this.userRepository = userRepository;
-        this.idGenerator    = idGenerator;
+                      UrlCacheService urlCacheService,
+                      com.slicelink.ratelimit.RateLimitService rateLimitService) {
+        this.urlRepository   = urlRepository;
+        this.userRepository  = userRepository;
+        this.idGenerator     = idGenerator;
         this.urlCacheService = urlCacheService;
+        this.rateLimitService = rateLimitService;
     }
 
     /**
@@ -55,6 +58,13 @@ public class UrlService {
      */
     @Transactional
     public Url create(Long ownerId, String originalUrl) {
+        if (!rateLimitService.allowUrlCreation(ownerId)) {
+            throw new ApiException(
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "RATE_LIMIT_EXCEEDED",
+                    "Too many requests. Please try again later.");
+        }
+
         User owner = userRepository.findById(ownerId)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.UNAUTHORIZED,

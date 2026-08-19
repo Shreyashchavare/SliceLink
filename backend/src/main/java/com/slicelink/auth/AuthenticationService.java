@@ -22,14 +22,18 @@ public class AuthenticationService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenService tokenService;
     private final TokenHashService tokenHashService;
+    private final com.slicelink.ratelimit.RateLimitService rateLimitService;
 
     public AuthenticationService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository,
-                                 PasswordEncoder passwordEncoder, JwtTokenService tokenService, TokenHashService tokenHashService) {
+                                 PasswordEncoder passwordEncoder, JwtTokenService tokenService,
+                                 TokenHashService tokenHashService,
+                                 com.slicelink.ratelimit.RateLimitService rateLimitService) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.tokenHashService = tokenHashService;
+        this.rateLimitService = rateLimitService;
     }
 
     @Transactional
@@ -44,7 +48,15 @@ public class AuthenticationService {
 
     @Transactional
     public AuthenticationResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(normalizeEmail(request.email()))
+        String identifier = normalizeEmail(request.email());
+        if (!rateLimitService.allowLogin(identifier)) {
+            throw new ApiException(
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "RATE_LIMIT_EXCEEDED",
+                    "Too many requests. Please try again later.");
+        }
+
+        User user = userRepository.findByEmail(identifier)
                 .orElseThrow(() -> invalidCredentials());
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash()) || user.getStatus() != UserStatus.ACTIVE) {
             throw invalidCredentials();
