@@ -72,7 +72,7 @@ public class Url {
         this.status      = status;
     }
 
-    // ── read-only accessors ──────────────────────────────────────────────────
+    // ── accessors & mutators ────────────────────────────────────────────────
 
     public Long      getId()          { return id;          }
     public User      getUser()        { return user;        }
@@ -81,4 +81,12 @@ public class Url {
     public UrlStatus getStatus()      { return status;      }
     public Instant   getCreatedAt()   { return createdAt;   }
     public Instant   getUpdatedAt()   { return updatedAt;   }
+
+    public void updateOriginalUrl(String originalUrl) {
+        this.originalUrl = originalUrl;
+    }
+
+    public void updateStatus(UrlStatus status) {
+        this.status = status;
+    }
 }

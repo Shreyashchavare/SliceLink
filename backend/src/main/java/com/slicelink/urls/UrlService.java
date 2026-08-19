@@ -3,13 +3,14 @@ package com.slicelink.urls;
 import com.slicelink.shared.ApiException;
 import com.slicelink.users.User;
 import com.slicelink.users.UserRepository;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Application service for URL creation.
+ * Application service for URL creation and management.
  *
  * <h2>Short-code generation</h2>
  * <ol>
@@ -75,6 +76,88 @@ public class UrlService {
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "SHORT_CODE_GENERATION_FAILED",
                 "Failed to generate a unique short code. Please retry.");
+    }
+
+    /**
+     * Lists all shortened URLs owned by the specified user, ordered newest first.
+     *
+     * @param ownerId ID of the authenticated user
+     * @return list of URLs owned by the user
+     */
+    @Transactional(readOnly = true)
+    public List<Url> listByOwner(Long ownerId) {
+        return urlRepository.findAllByUserIdOrderByCreatedAtDesc(ownerId);
+    }
+
+    /**
+     * Retrieves a single URL by ID ensuring it belongs to the authenticated user.
+     *
+     * @param id      ID of the URL record
+     * @param ownerId ID of the authenticated user
+     * @return the {@link Url} record
+     * @throws ApiException 404 NOT_FOUND if the URL does not exist or does not belong to the user
+     */
+    @Transactional(readOnly = true)
+    public Url getByIdAndOwner(Long id, Long ownerId) {
+        return urlRepository.findByIdAndUserId(id, ownerId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "URL_NOT_FOUND",
+                        "URL not found."));
+    }
+
+    /**
+     * Updates the destination URL and invalidates the Redis redirect cache entry.
+     *
+     * @param id             ID of the URL record
+     * @param ownerId        ID of the authenticated user
+     * @param newOriginalUrl the new destination URL
+     * @return the updated {@link Url} record
+     * @throws ApiException 404 NOT_FOUND if the URL does not exist or does not belong to the user
+     */
+    @Transactional
+    public Url updateOriginalUrl(Long id, Long ownerId, String newOriginalUrl) {
+        Url url = getByIdAndOwner(id, ownerId);
+        if (!url.getOriginalUrl().equals(newOriginalUrl)) {
+            url.updateOriginalUrl(newOriginalUrl);
+            urlCacheService.evict(url.getShortCode());
+            return urlRepository.save(url);
+        }
+        return url;
+    }
+
+    /**
+     * Updates the lifecycle status of a URL and invalidates the Redis redirect cache entry.
+     *
+     * @param id        ID of the URL record
+     * @param ownerId   ID of the authenticated user
+     * @param newStatus the new lifecycle status
+     * @return the updated {@link Url} record
+     * @throws ApiException 404 NOT_FOUND if the URL does not exist or does not belong to the user
+     */
+    @Transactional
+    public Url updateStatus(Long id, Long ownerId, UrlStatus newStatus) {
+        Url url = getByIdAndOwner(id, ownerId);
+        if (url.getStatus() != newStatus) {
+            url.updateStatus(newStatus);
+            urlCacheService.evict(url.getShortCode());
+            return urlRepository.save(url);
+        }
+        return url;
+    }
+
+    /**
+     * Deletes a URL and invalidates the Redis redirect cache entry.
+     *
+     * @param id      ID of the URL record
+     * @param ownerId ID of the authenticated user
+     * @throws ApiException 404 NOT_FOUND if the URL does not exist or does not belong to the user
+     */
+    @Transactional
+    public void delete(Long id, Long ownerId) {
+        Url url = getByIdAndOwner(id, ownerId);
+        urlCacheService.evict(url.getShortCode());
+        urlRepository.delete(url);
     }
 
     /**

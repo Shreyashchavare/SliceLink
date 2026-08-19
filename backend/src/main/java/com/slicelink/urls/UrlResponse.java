@@ -27,7 +27,14 @@ public record UrlResponse(
         UrlStatus status,
 
         @Schema(description = "Creation timestamp (UTC)")
-        Instant createdAt) {
+        Instant createdAt,
+
+        @Schema(description = "Last update timestamp (UTC)")
+        Instant updatedAt) {
+
+    public UrlResponse(Long id, Long userId, String originalUrl, String shortCode, UrlStatus status, Instant createdAt) {
+        this(id, userId, originalUrl, shortCode, status, createdAt, null);
+    }
 
     /** Converts a {@link Url} entity to its response representation. */
     public static UrlResponse from(Url url) {
@@ -37,6 +44,7 @@ public record UrlResponse(
                 url.getOriginalUrl(),
                 url.getShortCode(),
                 url.getStatus(),
-                url.getCreatedAt());
+                url.getCreatedAt(),
+                url.getUpdatedAt());
     }
 }
