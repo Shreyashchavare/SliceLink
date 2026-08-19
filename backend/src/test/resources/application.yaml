@@ -31,3 +31,6 @@ slicelink:
       refresh-token-ttl: P7D
     cors:
       allowed-origin: http://localhost:5173
+  cache:
+    url-ttl: PT24H
+    key-prefix: "url:redirect:"

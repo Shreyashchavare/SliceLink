@@ -23,6 +23,9 @@ slicelink:
       refresh-token-ttl: ${SLICELINK_JWT_REFRESH_TOKEN_TTL:P7D}
     cors:
       allowed-origin: ${SLICELINK_CORS_ALLOWED_ORIGIN:http://localhost:5173}
+  cache:
+    url-ttl: ${SLICELINK_CACHE_URL_TTL:PT24H}
+    key-prefix: ${SLICELINK_CACHE_KEY_PREFIX:url:redirect:}
 
 server:
   port: ${SERVER_PORT:8080}

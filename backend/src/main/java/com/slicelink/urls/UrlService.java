@@ -3,6 +3,7 @@ package com.slicelink.urls;
 import com.slicelink.shared.ApiException;
 import com.slicelink.users.User;
 import com.slicelink.users.UserRepository;
+import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,13 +33,16 @@ public class UrlService {
     private final UrlRepository     urlRepository;
     private final UserRepository    userRepository;
     private final UrlIdGenerator    idGenerator;
+    private final UrlCacheService   urlCacheService;
 
     public UrlService(UrlRepository urlRepository,
                       UserRepository userRepository,
-                      UrlIdGenerator idGenerator) {
+                      UrlIdGenerator idGenerator,
+                      UrlCacheService urlCacheService) {
         this.urlRepository  = urlRepository;
         this.userRepository = userRepository;
         this.idGenerator    = idGenerator;
+        this.urlCacheService = urlCacheService;
     }
 
     /**
@@ -76,6 +80,14 @@ public class UrlService {
     /**
      * Resolves a short code to its original URL for redirection.
      *
+     * <p>Follows the cache-aside pattern:
+     * <ol>
+     *   <li>Check Redis cache for an existing redirect mapping.</li>
+     *   <li>If present (cache HIT), return immediately without database query.</li>
+     *   <li>If absent (cache MISS), query PostgreSQL.</li>
+     *   <li>If active, store in Redis with TTL and return.</li>
+     * </ol>
+     *
      * @param shortCode the Base62 short code to resolve
      * @return the original URL destination
      * @throws ApiException 404 NOT_FOUND if the short code does not exist
@@ -90,6 +102,13 @@ public class UrlService {
                     "Short URL not found.");
         }
 
+        // 1. Check Redis cache first (cache-aside)
+        Optional<String> cachedUrl = urlCacheService.get(shortCode);
+        if (cachedUrl.isPresent()) {
+            return cachedUrl.get();
+        }
+
+        // 2. Cache miss -> query authoritative PostgreSQL database
         Url url = urlRepository.findByShortCode(shortCode)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
@@ -102,6 +121,9 @@ public class UrlService {
                     "URL_DISABLED",
                     "Short URL is disabled.");
         }
+
+        // 3. Populate Redis cache with the active target URL
+        urlCacheService.put(shortCode, url.getOriginalUrl());
 
         return url.getOriginalUrl();
     }
