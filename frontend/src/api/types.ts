@@ -79,7 +79,7 @@ export interface RecentClickItem {
 }
 
 export interface UrlAnalyticsResponse {
-  urlId: number;
+  urlId: number | string;
   shortCode: string;
   totalClicks: number;
   recentClicks: RecentClickItem[];

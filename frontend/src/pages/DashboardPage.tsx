@@ -77,11 +77,18 @@ export const DashboardPage: React.FC = () => {
   return (
     <PageContainer
       title="Dashboard"
-      subtitle="Overview of your active link portfolio and redirection metrics"
+      subtitle="Overview of your active link portfolio, redirection status, and telemetry"
       actions={
-        <Button variant="primary" size="md" onClick={() => setIsCreateOpen(true)}>
-          + Create Short URL
-        </Button>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <Link to="/analytics">
+            <Button variant="secondary" size="md">
+              📊 View Analytics →
+            </Button>
+          </Link>
+          <Button variant="primary" size="md" onClick={() => setIsCreateOpen(true)}>
+            + Create Short URL
+          </Button>
+        </div>
       }
     >
       <ErrorMessage error={error} title="Failed to load dashboard" onRetry={fetchUrls} />

@@ -1,5 +1,6 @@
 import React from 'react';
-import { UrlResponse, UrlStatus } from '../../api/types';
+import { useNavigate } from 'react-router-dom';
+import { UrlResponse } from '../../api/types';
 import { Button } from '../common/Button';
 import { CopyUrlButton } from './CopyUrlButton';
 
@@ -18,6 +19,7 @@ export const UrlTable: React.FC<UrlTableProps> = ({
   onDelete,
   actionLoadingId,
 }) => {
+  const navigate = useNavigate();
   const publicBaseUrl = import.meta.env.VITE_PUBLIC_URL || 'http://localhost:8080';
 
   const formatDate = (isoString: string) => {
@@ -94,6 +96,16 @@ export const UrlTable: React.FC<UrlTableProps> = ({
 
                 <td className="cell-actions">
                   <div className="actions-group">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => navigate(`/analytics?urlId=${url.id}`)}
+                      disabled={isLoading}
+                      title="View Click Analytics"
+                    >
+                      📊 Analytics
+                    </Button>
+
                     <Button
                       size="sm"
                       variant="secondary"
