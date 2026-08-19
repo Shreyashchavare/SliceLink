@@ -15,6 +15,9 @@ spring:
   kafka:
     listener:
       auto-startup: false
+    producer:
+      properties:
+        max.block.ms: 500
 
 management:
   health:
@@ -34,3 +37,6 @@ slicelink:
   cache:
     url-ttl: PT24H
     key-prefix: "url:redirect:"
+  kafka:
+    click-topic: "slicelink.url.clicks"
+    consumer-group: "slicelink-analytics"

@@ -1,10 +1,14 @@
 package com.slicelink.urls;
 
+import com.slicelink.analytics.ClickEvent;
+import com.slicelink.analytics.ClickEventProducer;
 import com.slicelink.shared.ApiException;
 import com.slicelink.users.User;
 import com.slicelink.users.UserRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,19 +35,22 @@ public class UrlService {
     /** Maximum collision-retry attempts before raising an internal error. */
     private static final int MAX_RETRIES = 5;
 
-    private final UrlRepository     urlRepository;
-    private final UserRepository    userRepository;
-    private final UrlIdGenerator    idGenerator;
-    private final UrlCacheService   urlCacheService;
+    private final UrlRepository      urlRepository;
+    private final UserRepository     userRepository;
+    private final UrlIdGenerator     idGenerator;
+    private final UrlCacheService    urlCacheService;
+    private final ClickEventProducer clickEventProducer;
 
     public UrlService(UrlRepository urlRepository,
                       UserRepository userRepository,
                       UrlIdGenerator idGenerator,
-                      UrlCacheService urlCacheService) {
-        this.urlRepository  = urlRepository;
-        this.userRepository = userRepository;
-        this.idGenerator    = idGenerator;
-        this.urlCacheService = urlCacheService;
+                      UrlCacheService urlCacheService,
+                      ClickEventProducer clickEventProducer) {
+        this.urlRepository      = urlRepository;
+        this.userRepository     = userRepository;
+        this.idGenerator        = idGenerator;
+        this.urlCacheService    = urlCacheService;
+        this.clickEventProducer = clickEventProducer;
     }
 
     /**
@@ -161,14 +168,14 @@ public class UrlService {
     }
 
     /**
-     * Resolves a short code to its original URL for redirection.
+     * Resolves a short code to its original URL for redirection and emits a click event.
      *
      * <p>Follows the cache-aside pattern:
      * <ol>
      *   <li>Check Redis cache for an existing redirect mapping.</li>
-     *   <li>If present (cache HIT), return immediately without database query.</li>
+     *   <li>If present (cache HIT), publish click event asynchronously and return immediately.</li>
      *   <li>If absent (cache MISS), query PostgreSQL.</li>
-     *   <li>If active, store in Redis with TTL and return.</li>
+     *   <li>If active, store in Redis with TTL, publish click event asynchronously, and return.</li>
      * </ol>
      *
      * @param shortCode the Base62 short code to resolve
@@ -188,6 +195,27 @@ public class UrlService {
         // 1. Check Redis cache first (cache-aside)
         Optional<String> cachedUrl = urlCacheService.get(shortCode);
         if (cachedUrl.isPresent()) {
+            Optional<UrlCacheService.CachedUrlMetadata> meta = urlCacheService.getMetadata(shortCode);
+            if (meta.isPresent()) {
+                clickEventProducer.send(new ClickEvent(
+                        UUID.randomUUID().toString(),
+                        meta.get().urlId(),
+                        shortCode,
+                        meta.get().userId(),
+                        Instant.now()
+                ));
+            } else {
+                urlRepository.findByShortCode(shortCode).ifPresent(u -> {
+                    urlCacheService.put(shortCode, u.getOriginalUrl(), u.getId(), u.getUser().getId());
+                    clickEventProducer.send(new ClickEvent(
+                            UUID.randomUUID().toString(),
+                            u.getId(),
+                            shortCode,
+                            u.getUser().getId(),
+                            Instant.now()
+                    ));
+                });
+            }
             return cachedUrl.get();
         }
 
@@ -205,8 +233,17 @@ public class UrlService {
                     "Short URL is disabled.");
         }
 
-        // 3. Populate Redis cache with the active target URL
-        urlCacheService.put(shortCode, url.getOriginalUrl());
+        // 3. Populate Redis cache with the active target URL and metadata
+        urlCacheService.put(shortCode, url.getOriginalUrl(), url.getId(), url.getUser().getId());
+
+        // 4. Emit ClickEvent asynchronously to Kafka
+        clickEventProducer.send(new ClickEvent(
+                UUID.randomUUID().toString(),
+                url.getId(),
+                shortCode,
+                url.getUser().getId(),
+                Instant.now()
+        ));
 
         return url.getOriginalUrl();
     }

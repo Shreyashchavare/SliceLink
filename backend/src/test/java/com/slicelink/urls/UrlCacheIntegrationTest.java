@@ -95,7 +95,8 @@ class UrlCacheIntegrationTest {
         when(mockUrlRepository.save(any(Url.class))).thenAnswer(inv -> urlRepository.save(inv.getArgument(0)));
         when(mockUrlRepository.existsByShortCode(anyString())).thenAnswer(inv -> urlRepository.existsByShortCode(inv.getArgument(0)));
 
-        urlService = new UrlService(mockUrlRepository, userRepository, idGenerator, urlCacheService);
+        com.slicelink.analytics.ClickEventProducer mockProducer = mock(com.slicelink.analytics.ClickEventProducer.class);
+        urlService = new UrlService(mockUrlRepository, userRepository, idGenerator, urlCacheService, mockProducer);
     }
 
     private User createTestUser() {

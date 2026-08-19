@@ -18,7 +18,10 @@ import org.springframework.stereotype.Service;
 @EnableConfigurationProperties(UrlCacheProperties.class)
 public class UrlCacheService {
 
+    public record CachedUrlMetadata(Long urlId, Long userId) {}
+
     private static final Logger log = LoggerFactory.getLogger(UrlCacheService.class);
+    private static final String META_PREFIX = "url:meta:";
 
     private final StringRedisTemplate redisTemplate;
     private final UrlCacheProperties properties;
@@ -55,6 +58,31 @@ public class UrlCacheService {
     }
 
     /**
+     * Looks up cached metadata (urlId, userId) for a given short code.
+     *
+     * @param shortCode the Base62 short code
+     * @return an Optional containing CachedUrlMetadata if present, or empty on miss/error
+     */
+    public Optional<CachedUrlMetadata> getMetadata(String shortCode) {
+        if (shortCode == null || shortCode.isBlank()) {
+            return Optional.empty();
+        }
+
+        String key = META_PREFIX + shortCode;
+        try {
+            String val = redisTemplate.opsForValue().get(key);
+            if (val != null && val.contains(":")) {
+                String[] parts = val.split(":");
+                return Optional.of(new CachedUrlMetadata(Long.parseLong(parts[0]), Long.parseLong(parts[1])));
+            }
+            return Optional.empty();
+        } catch (Exception e) {
+            log.warn("Redis GET metadata failed for key {}: {}", key, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
      * Stores a short code destination in Redis with the configured TTL.
      *
      * @param shortCode the Base62 short code
@@ -75,6 +103,27 @@ public class UrlCacheService {
     }
 
     /**
+     * Stores a short code destination and metadata in Redis with the configured TTL.
+     *
+     * @param shortCode the Base62 short code
+     * @param originalUrl the target destination URL
+     * @param urlId the primary key ID of the URL record
+     * @param userId the ID of the URL owner
+     */
+    public void put(String shortCode, String originalUrl, Long urlId, Long userId) {
+        put(shortCode, originalUrl);
+        if (shortCode == null || urlId == null || userId == null) {
+            return;
+        }
+        String metaKey = META_PREFIX + shortCode;
+        try {
+            redisTemplate.opsForValue().set(metaKey, urlId + ":" + userId, properties.urlTtl());
+        } catch (Exception e) {
+            log.warn("Redis PUT metadata failed for key {}: {}", metaKey, e.getMessage());
+        }
+    }
+
+    /**
      * Evicts a short code from Redis cache.
      *
      * @param shortCode the Base62 short code to invalidate
@@ -87,6 +136,7 @@ public class UrlCacheService {
         String key = buildKey(shortCode);
         try {
             redisTemplate.delete(key);
+            redisTemplate.delete(META_PREFIX + shortCode);
             log.debug("Evicted cache for key: {}", key);
         } catch (Exception e) {
             log.warn("Redis EVICT failed for key {}: {}", key, e.getMessage());
