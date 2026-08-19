@@ -26,6 +26,7 @@ class UrlServiceManagementTest {
     private UserRepository userRepository;
     private UrlIdGenerator idGenerator;
     private UrlCacheService urlCacheService;
+    private com.slicelink.ratelimit.RateLimitService rateLimitService;
     private UrlService urlService;
 
     private User testUser;
@@ -37,8 +38,9 @@ class UrlServiceManagementTest {
         userRepository = mock(UserRepository.class);
         idGenerator = mock(UrlIdGenerator.class);
         urlCacheService = mock(UrlCacheService.class);
+        rateLimitService = mock(com.slicelink.ratelimit.RateLimitService.class);
 
-        urlService = new UrlService(urlRepository, userRepository, idGenerator, urlCacheService);
+        urlService = new UrlService(urlRepository, userRepository, idGenerator, urlCacheService, rateLimitService);
 
         testUser = new User("owner@example.com", "hash", "Owner", UserStatus.ACTIVE);
         testUrl = new Url(100L, testUser, "https://example.com/target", "3D7gK", UrlStatus.ACTIVE);

@@ -34,3 +34,10 @@ slicelink:
   cache:
     url-ttl: PT24H
     key-prefix: "url:redirect:"
+  rate-limit:
+    login:
+      max-requests: 5
+      window: PT1M
+    url-create:
+      max-requests: 20
+      window: PT1M

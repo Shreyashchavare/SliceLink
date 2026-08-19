@@ -26,6 +26,13 @@ slicelink:
   cache:
     url-ttl: ${SLICELINK_CACHE_URL_TTL:PT24H}
     key-prefix: ${SLICELINK_CACHE_KEY_PREFIX:url:redirect:}
+  rate-limit:
+    login:
+      max-requests: ${SLICELINK_RATE_LIMIT_LOGIN_MAX_REQUESTS:5}
+      window: ${SLICELINK_RATE_LIMIT_LOGIN_WINDOW:PT1M}
+    url-create:
+      max-requests: ${SLICELINK_RATE_LIMIT_URL_CREATE_MAX_REQUESTS:20}
+      window: ${SLICELINK_RATE_LIMIT_URL_CREATE_WINDOW:PT1M}
 
 server:
   port: ${SERVER_PORT:8080}

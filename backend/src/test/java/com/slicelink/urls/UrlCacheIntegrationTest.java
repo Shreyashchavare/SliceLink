@@ -95,7 +95,10 @@ class UrlCacheIntegrationTest {
         when(mockUrlRepository.save(any(Url.class))).thenAnswer(inv -> urlRepository.save(inv.getArgument(0)));
         when(mockUrlRepository.existsByShortCode(anyString())).thenAnswer(inv -> urlRepository.existsByShortCode(inv.getArgument(0)));
 
-        urlService = new UrlService(mockUrlRepository, userRepository, idGenerator, urlCacheService);
+        com.slicelink.ratelimit.RateLimitService mockRateLimit = mock(com.slicelink.ratelimit.RateLimitService.class);
+        when(mockRateLimit.allowUrlCreation(any())).thenReturn(true);
+
+        urlService = new UrlService(mockUrlRepository, userRepository, idGenerator, urlCacheService, mockRateLimit);
     }
 
     private User createTestUser() {
