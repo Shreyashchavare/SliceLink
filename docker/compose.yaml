@@ -3,6 +3,8 @@ name: slicelink
 services:
   postgres:
     image: postgres:18-alpine
+    container_name: slicelink-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-slicelink}
       POSTGRES_USER: ${POSTGRES_USER:-slicelink}
@@ -13,29 +15,39 @@ services:
       - postgres-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 5s
+    networks:
+      - slicelink-network
 
   redis:
     image: redis:8-alpine
+    container_name: slicelink-redis
+    restart: unless-stopped
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 5s
+    networks:
+      - slicelink-network
 
   kafka:
     image: apache/kafka:4.1.1
+    container_name: slicelink-kafka
+    restart: unless-stopped
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:${KAFKA_PORT:-9092}
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
@@ -48,8 +60,81 @@ services:
       - "${KAFKA_PORT:-9092}:9092"
     volumes:
       - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    networks:
+      - slicelink-network
 
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: slicelink-backend
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-slicelink}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-slicelink}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-change-me-for-local-development}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SLICELINK_JWT_SECRET: ${SLICELINK_JWT_SECRET:-replace-with-a-unique-local-development-secret-at-least-32-characters}
+      SLICELINK_JWT_ACCESS_TOKEN_TTL: ${SLICELINK_JWT_ACCESS_TOKEN_TTL:-PT15M}
+      SLICELINK_JWT_REFRESH_TOKEN_TTL: ${SLICELINK_JWT_REFRESH_TOKEN_TTL:-P7D}
+      SLICELINK_CORS_ALLOWED_ORIGIN: ${SLICELINK_CORS_ALLOWED_ORIGIN:-http://localhost}
+      SLICELINK_CACHE_URL_TTL: ${SLICELINK_CACHE_URL_TTL:-PT24H}
+      SLICELINK_CACHE_KEY_PREFIX: ${SLICELINK_CACHE_KEY_PREFIX:-url:redirect:}
+      SLICELINK_RATE_LIMIT_LOGIN_MAX_REQUESTS: ${SLICELINK_RATE_LIMIT_LOGIN_MAX_REQUESTS:-5}
+      SLICELINK_RATE_LIMIT_LOGIN_WINDOW: ${SLICELINK_RATE_LIMIT_LOGIN_WINDOW:-PT1M}
+      SLICELINK_RATE_LIMIT_URL_CREATE_MAX_REQUESTS: ${SLICELINK_RATE_LIMIT_URL_CREATE_MAX_REQUESTS:-20}
+      SLICELINK_RATE_LIMIT_URL_CREATE_WINDOW: ${SLICELINK_RATE_LIMIT_URL_CREATE_WINDOW:-PT1M}
+      SERVER_PORT: 8080
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    networks:
+      - slicelink-network
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: slicelink-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:80/ > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - slicelink-network
 volumes:
   postgres-data:
   redis-data:
   kafka-data:
+
+networks:
+  slicelink-network:
+    driver: bridge
